@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "echo \"Static app - no build needed\"",
+    "build": "echo \"Static app - no build needed\"",
+    "preview": "echo \"Static app - no build needed\""
   },
   "dependencies": {
     "react": "^18.3.1",
