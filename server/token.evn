@@ -1,0 +1,2 @@
+DATABASE_URL=postgresql://neondb_owner:npg_wlFIV41ijGrC@ep-jolly-wildflower-b4ea3ice-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+JWT_SECRET=34201f51128583e2d75957dbb07cee753204fba634523c92bcd3afb57e4a19bb
