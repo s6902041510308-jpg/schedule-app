@@ -2,24 +2,30 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { sql } = require('@vercel/postgres');
+const { Pool } = require('pg');
 
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
+// Database pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+});
+
 // Initialize database tables
 async function initDB() {
   try {
-    await sql`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    `;
+    `);
 
-    await sql`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS classes (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
@@ -35,7 +41,7 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
       )
-    `;
+    `);
 
     console.log('Database initialized');
   } catch (err) {
@@ -135,13 +141,13 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
-      const existing = await sql`SELECT id FROM users WHERE username = ${username}`;
+      const existing = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
       if (existing.rows.length > 0) {
         return sendJSON(res, 409, { error: 'Username already exists' });
       }
 
       const hashed = hashPassword(password);
-      const result = await sql`INSERT INTO users (username, password) VALUES (${username}, ${hashed}) RETURNING id`;
+      const result = await pool.query('INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id', [username, hashed]);
       const userId = result.rows[0].id;
 
       const token = createToken(userId);
@@ -160,7 +166,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
-      const result = await sql`SELECT * FROM users WHERE username = ${username}`;
+      const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
       const user = result.rows[0];
       if (!user || user.password !== hashPassword(password)) {
         return sendJSON(res, 401, { error: 'Invalid credentials' });
@@ -178,7 +184,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/classes' && req.method === 'GET') {
     authMiddleware(req, res, async () => {
       try {
-        const result = await sql`SELECT * FROM classes WHERE user_id = ${req.userId}`;
+        const result = await pool.query('SELECT * FROM classes WHERE user_id = $1', [req.userId]);
         const classes = result.rows.map(c => ({
           ...c,
           is_temporary: !!c.is_temporary,
@@ -203,11 +209,10 @@ const server = http.createServer(async (req, res) => {
       }
 
       try {
-        const result = await sql`
-          INSERT INTO classes (user_id, subject, teacher, room, start_time, end_time, days, is_temporary, temporary_week)
-          VALUES (${req.userId}, ${subject}, ${teacher}, ${room}, ${start_time}, ${end_time}, ${JSON.stringify(days)}, ${is_temporary ? 1 : 0}, ${temporary_week || null})
-          RETURNING *
-        `;
+        const result = await pool.query(
+          'INSERT INTO classes (user_id, subject, teacher, room, start_time, end_time, days, is_temporary, temporary_week) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+          [req.userId, subject, teacher, room, start_time, end_time, JSON.stringify(days), is_temporary ? 1 : 0, temporary_week || null]
+        );
         const newClass = result.rows[0];
         sendJSON(res, 200, {
           ...newClass,
@@ -230,11 +235,10 @@ const server = http.createServer(async (req, res) => {
       const { subject, teacher, room, start_time, end_time, days } = await parseBody(req);
 
       try {
-        const result = await sql`
-          UPDATE classes SET subject = ${subject}, teacher = ${teacher}, room = ${room}, start_time = ${start_time}, end_time = ${end_time}, days = ${JSON.stringify(days)}
-          WHERE id = ${classId} AND user_id = ${req.userId}
-          RETURNING *
-        `;
+        const result = await pool.query(
+          'UPDATE classes SET subject = $1, teacher = $2, room = $3, start_time = $4, end_time = $5, days = $6 WHERE id = $7 AND user_id = $8 RETURNING *',
+          [subject, teacher, room, start_time, end_time, JSON.stringify(days), classId, req.userId]
+        );
         if (result.rows.length === 0) {
           return sendJSON(res, 404, { error: 'Class not found' });
         }
@@ -260,7 +264,7 @@ const server = http.createServer(async (req, res) => {
       const classId = parseInt(deleteMatch[1]);
 
       try {
-        const result = await sql`DELETE FROM classes WHERE id = ${classId} AND user_id = ${req.userId}`;
+        const result = await pool.query('DELETE FROM classes WHERE id = $1 AND user_id = $2', [classId, req.userId]);
         if (result.rowCount === 0) {
           return sendJSON(res, 404, { error: 'Class not found' });
         }
@@ -281,7 +285,7 @@ const server = http.createServer(async (req, res) => {
       const { week } = await parseBody(req);
 
       try {
-        const existing = await sql`SELECT * FROM classes WHERE id = ${classId} AND user_id = ${req.userId}`;
+        const existing = await pool.query('SELECT * FROM classes WHERE id = $1 AND user_id = $2', [classId, req.userId]);
         if (existing.rows.length === 0) {
           return sendJSON(res, 404, { error: 'Class not found' });
         }
@@ -291,11 +295,10 @@ const server = http.createServer(async (req, res) => {
           cancelledWeeks.push(week);
         }
 
-        const result = await sql`
-          UPDATE classes SET cancelled_weeks = ${JSON.stringify(cancelledWeeks)}
-          WHERE id = ${classId}
-          RETURNING *
-        `;
+        const result = await pool.query(
+          'UPDATE classes SET cancelled_weeks = $1 WHERE id = $2 RETURNING *',
+          [JSON.stringify(cancelledWeeks), classId]
+        );
         const updated = result.rows[0];
         sendJSON(res, 200, {
           ...updated,
@@ -318,7 +321,7 @@ const server = http.createServer(async (req, res) => {
       const { week } = await parseBody(req);
 
       try {
-        const existing = await sql`SELECT * FROM classes WHERE id = ${classId} AND user_id = ${req.userId}`;
+        const existing = await pool.query('SELECT * FROM classes WHERE id = $1 AND user_id = $2', [classId, req.userId]);
         if (existing.rows.length === 0) {
           return sendJSON(res, 404, { error: 'Class not found' });
         }
@@ -326,11 +329,10 @@ const server = http.createServer(async (req, res) => {
         const cancelledWeeks = JSON.parse(existing.rows[0].cancelled_weeks || '[]');
         const filtered = cancelledWeeks.filter(w => w !== week);
 
-        const result = await sql`
-          UPDATE classes SET cancelled_weeks = ${JSON.stringify(filtered)}
-          WHERE id = ${classId}
-          RETURNING *
-        `;
+        const result = await pool.query(
+          'UPDATE classes SET cancelled_weeks = $1 WHERE id = $2 RETURNING *',
+          [JSON.stringify(filtered), classId]
+        );
         const updated = result.rows[0];
         sendJSON(res, 200, {
           ...updated,
