@@ -1,0 +1,18 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ทุกข้อมูลของผู้ใช้อยู่ใต้ users/{uid}/...
+    // อนุญาตเฉพาะเจ้าของข้อมูลเท่านั้น (ต้อง login และ uid ตรงกัน)
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+                        && request.auth.uid == userId;
+    }
+
+    // บล็อกทุกอย่างอื่นนอกเหนือจาก users/{uid}/...
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
