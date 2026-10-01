@@ -1,4 +1,4 @@
-import {
+﻿import {
   collection,
   doc,
   getDocs,
@@ -10,7 +10,7 @@ import {
   where,
   orderBy,
 } from 'firebase/firestore'
-import { db } from './firebase'
+import { getDb } from './firebase'
 import type { Subject, Activity, Term, ScheduleException } from '@/types'
 import {
   getCachedSubjects,
@@ -32,7 +32,7 @@ export async function getSubjects(userId: string, forceRefresh = false): Promise
   }
 
   const q = query(
-    collection(db, 'users', userId, 'subjects'),
+    collection(getDb(), 'users', userId, 'subjects'),
     orderBy('createdAt', 'asc')
   )
   const snapshot = await getDocs(q)
@@ -42,7 +42,7 @@ export async function getSubjects(userId: string, forceRefresh = false): Promise
 }
 
 export async function addSubject(userId: string, subject: Omit<Subject, 'id' | 'createdAt'>): Promise<string> {
-  const docRef = await addDoc(collection(db, 'users', userId, 'subjects'), {
+  const docRef = await addDoc(collection(getDb(), 'users', userId, 'subjects'), {
     ...subject,
     createdAt: new Date(),
   })
@@ -51,17 +51,17 @@ export async function addSubject(userId: string, subject: Omit<Subject, 'id' | '
 }
 
 export async function updateSubject(userId: string, subjectId: string, data: Partial<Subject>): Promise<void> {
-  await updateDoc(doc(db, 'users', userId, 'subjects', subjectId), data)
+  await updateDoc(doc(getDb(), 'users', userId, 'subjects', subjectId), data)
   invalidateCache(`subjects_${userId}`)
 }
 
 export async function deleteSubject(userId: string, subjectId: string): Promise<void> {
   // Delete the subject
-  await deleteDoc(doc(db, 'users', userId, 'subjects', subjectId))
+  await deleteDoc(doc(getDb(), 'users', userId, 'subjects', subjectId))
   
   // Also delete all exceptions related to this subject
   const exceptionsQuery = query(
-    collection(db, 'users', userId, 'exceptions'),
+    collection(getDb(), 'users', userId, 'exceptions'),
     where('subjectId', '==', subjectId)
   )
   const exceptionsSnapshot = await getDocs(exceptionsQuery)
@@ -80,7 +80,7 @@ export async function getActivities(userId: string, forceRefresh = false): Promi
   }
 
   const q = query(
-    collection(db, 'users', userId, 'activities'),
+    collection(getDb(), 'users', userId, 'activities'),
     orderBy('date', 'asc')
   )
   const snapshot = await getDocs(q)
@@ -90,7 +90,7 @@ export async function getActivities(userId: string, forceRefresh = false): Promi
 }
 
 export async function addActivity(userId: string, activity: Omit<Activity, 'id' | 'createdAt'>): Promise<string> {
-  const docRef = await addDoc(collection(db, 'users', userId, 'activities'), {
+  const docRef = await addDoc(collection(getDb(), 'users', userId, 'activities'), {
     ...activity,
     createdAt: new Date(),
   })
@@ -99,12 +99,12 @@ export async function addActivity(userId: string, activity: Omit<Activity, 'id' 
 }
 
 export async function updateActivity(userId: string, activityId: string, data: Partial<Activity>): Promise<void> {
-  await updateDoc(doc(db, 'users', userId, 'activities', activityId), data)
+  await updateDoc(doc(getDb(), 'users', userId, 'activities', activityId), data)
   invalidateCache(`activities_${userId}`)
 }
 
 export async function deleteActivity(userId: string, activityId: string): Promise<void> {
-  await deleteDoc(doc(db, 'users', userId, 'activities', activityId))
+  await deleteDoc(doc(getDb(), 'users', userId, 'activities', activityId))
   invalidateCache(`activities_${userId}`)
 }
 
@@ -116,7 +116,7 @@ export async function getTerms(userId: string, forceRefresh = false): Promise<Te
   }
 
   const q = query(
-    collection(db, 'users', userId, 'terms'),
+    collection(getDb(), 'users', userId, 'terms'),
     orderBy('createdAt', 'asc')
   )
   const snapshot = await getDocs(q)
@@ -126,7 +126,7 @@ export async function getTerms(userId: string, forceRefresh = false): Promise<Te
 }
 
 export async function addTerm(userId: string, term: Omit<Term, 'id' | 'createdAt'>): Promise<string> {
-  const docRef = await addDoc(collection(db, 'users', userId, 'terms'), {
+  const docRef = await addDoc(collection(getDb(), 'users', userId, 'terms'), {
     ...term,
     createdAt: new Date(),
   })
@@ -135,12 +135,12 @@ export async function addTerm(userId: string, term: Omit<Term, 'id' | 'createdAt
 }
 
 export async function updateTerm(userId: string, termId: string, data: Partial<Term>): Promise<void> {
-  await updateDoc(doc(db, 'users', userId, 'terms', termId), data)
+  await updateDoc(doc(getDb(), 'users', userId, 'terms', termId), data)
   invalidateCache(`terms_${userId}`)
 }
 
 export async function deleteTerm(userId: string, termId: string): Promise<void> {
-  await deleteDoc(doc(db, 'users', userId, 'terms', termId))
+  await deleteDoc(doc(getDb(), 'users', userId, 'terms', termId))
   invalidateCache(`terms_${userId}`)
 }
 
@@ -152,7 +152,7 @@ export async function getExceptions(userId: string, forceRefresh = false): Promi
   }
 
   const q = query(
-    collection(db, 'users', userId, 'exceptions'),
+    collection(getDb(), 'users', userId, 'exceptions'),
     orderBy('createdAt', 'asc')
   )
   const snapshot = await getDocs(q)
@@ -164,7 +164,7 @@ export async function getExceptions(userId: string, forceRefresh = false): Promi
 export async function addException(userId: string, exception: Omit<ScheduleException, 'id' | 'createdAt'>): Promise<string> {
   // Check if there's already a move exception for this subject (regardless of originalDate)
   const existingQuery = query(
-    collection(db, 'users', userId, 'exceptions'),
+    collection(getDb(), 'users', userId, 'exceptions'),
     where('subjectId', '==', exception.subjectId),
     where('type', '==', 'move')
   )
@@ -174,7 +174,7 @@ export async function addException(userId: string, exception: Omit<ScheduleExcep
     // Update existing exception - keep the original originalDate, update newDate/time
     const existingDoc = existingSnapshot.docs[0]
     const existingData = existingDoc.data() as ScheduleException
-    await updateDoc(doc(db, 'users', userId, 'exceptions', existingDoc.id), {
+    await updateDoc(doc(getDb(), 'users', userId, 'exceptions', existingDoc.id), {
       newDate: exception.newDate,
       newStartTime: exception.newStartTime,
       newEndTime: exception.newEndTime,
@@ -185,7 +185,7 @@ export async function addException(userId: string, exception: Omit<ScheduleExcep
     return existingDoc.id
   }
   
-  const docRef = await addDoc(collection(db, 'users', userId, 'exceptions'), {
+  const docRef = await addDoc(collection(getDb(), 'users', userId, 'exceptions'), {
     ...exception,
     createdAt: new Date(),
   })
@@ -194,6 +194,7 @@ export async function addException(userId: string, exception: Omit<ScheduleExcep
 }
 
 export async function deleteException(userId: string, exceptionId: string): Promise<void> {
-  await deleteDoc(doc(db, 'users', userId, 'exceptions', exceptionId))
+  await deleteDoc(doc(getDb(), 'users', userId, 'exceptions', exceptionId))
   invalidateCache(`exceptions_${userId}`)
 }
+

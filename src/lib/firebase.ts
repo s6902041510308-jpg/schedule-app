@@ -11,13 +11,29 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 }
 
-let db: ReturnType<typeof getFirestore> | undefined
-let auth: ReturnType<typeof getAuth> | undefined
+let _db: ReturnType<typeof getFirestore> | null = null
+let _auth: ReturnType<typeof getAuth> | null = null
 
-if (typeof window !== 'undefined') {
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0]
-  db = getFirestore(app)
-  auth = getAuth(app)
+export function getDb() {
+  if (!_db) {
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0]
+    _db = getFirestore(app)
+  }
+  return _db
 }
 
-export { db, auth }
+export function getAuthInstance() {
+  if (!_auth) {
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0]
+    _auth = getAuth(app)
+  }
+  return _auth
+}
+
+// For backward compatibility - these will be initialized on first use
+export const db = {
+  get current() { return getDb() }
+}
+export const auth = {
+  get current() { return getAuthInstance() }
+}
