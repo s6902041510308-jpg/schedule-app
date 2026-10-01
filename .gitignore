@@ -1,7 +1,0 @@
-node_modules/
-*.log
-.DS_Store
-server/database.json
-server/database.db
-.env
-dist/
