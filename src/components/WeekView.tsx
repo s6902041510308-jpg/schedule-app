@@ -192,8 +192,9 @@ export default function WeekView() {
     if (!selectedItem?.subject || !user) return
     
     // Find the exception for this move
+    const subjectId = selectedItem.subject!.id
     const exception = exceptions.find(
-      (e) => e.subjectId === selectedItem.subject.id && e.type === 'move' && e.newDate === selectedDate
+      (e) => e.subjectId === subjectId && e.type === 'move' && e.newDate === selectedDate
     )
     
     if (exception) {
@@ -205,8 +206,9 @@ export default function WeekView() {
 
   const getExceptionForSelectedItem = () => {
     if (!selectedItem?.subject) return null
+    const subjectId = selectedItem.subject!.id
     return exceptions.find(
-      (e) => e.subjectId === selectedItem.subject.id && e.type === 'move' && e.newDate === selectedDate
+      (e) => e.subjectId === subjectId && e.type === 'move' && e.newDate === selectedDate
     )
   }
 
